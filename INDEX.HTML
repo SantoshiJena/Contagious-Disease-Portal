@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Contagious Disease & Epidemic Simulation Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet"/>
+    <style>
+    /* --- Base Portal Styles --- */
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; }
+    body.portal-view { transition: background-color 0.4s, color 0.4s; overflow-y: auto; }
+    body.simulation-view { overflow: hidden; } /* Hide portal scrollbar when sim is active */
+    .fade-in { animation: fadeIn 0.7s; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: none;} }
+    .epidemic-card:hover { box-shadow: 0 4px 24px 0 #f87171aa; transform: translateY(-4px) scale(1.02);}
+    .logout-animation { animation: logoutAnimation 1.5s forwards; }
+    @keyframes logoutAnimation {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.95); }
+      100% { opacity: 0; transform: scale(0.9); display: none; }
+    }
+
+    /* --- Modal styles --- */
+    .article-modal, .feedback-modal, .options-modal, .video-modal, .message-box {
+      background: rgba(0,0,0,0.7); position: fixed; z-index: 50; top: 0; left: 0;
+      width: 100vw; height: 100vh; display: none; align-items: center; justify-content: center;
+    }
+    .article-content, .feedback-content, .options-content, .video-content, .message-box-content {
+      background: #18181b; color: #fff; border-radius: 0.75rem; padding: 2rem;
+      max-width: 500px; width: 95vw; position: relative;
+    }
+    .video-content { max-width: 800px; }
+    .close-modal, .close-feedback, .close-options, .close-video {
+      position: absolute; top: 1.5rem; right: 2rem; font-size: 1.5rem; cursor: pointer;
+    }
+
+    /* --- Form validation styles --- */
+    .invalid { border-color: #f87171 !important; }
+    .valid { border-color: #4ade80 !important; }
+    .error-message { color: #f87171; font-size: 0.95em; display: none; }
+    .show { display: block !important; }
+
+    /* --- Case and date display colors --- */
+    .active-case { color: #f87171; font-weight: bold;}
+    .recovered-case { color: #4ade80; font-weight: bold;}
+    .active-date { color: #fbbf24; font-weight: bold; }
+    .guideline-card { transition: all 0.2s ease-in-out; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .guideline-card:hover { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); transform: translateY(-5px); }
+
+    /* --- Theme Specifics --- */
+    .dark-theme .card-bg { background: #1f2937; color: #f3f4f6; }
+    .light-theme .card-bg { background: #f3f4f6; color: #1f2937; border: 1px solid rgba(0, 0, 0, 0.1); }
+    body.light-theme { background: #ffffff; color: #111827; }
+    body.light-theme nav { background: rgba(255, 255, 255, 0.9); color: #111827; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    body.light-theme .top-bar { background: rgba(243, 244, 246, 0.8); color: #111827; }
+    body.light-theme .active-case { color: #dc2626; }
+    body.light-theme .recovered-case { color: #16a34a; }
+    body.light-theme .active-date { color: #ca8a04; }
+    body.light-theme .epidemic-card { background: linear-gradient(to bottom right, #f3f4f6, #e5e7eb, #d1d5db); }
+    body.light-theme .card-bg { background: rgba(243, 244, 246, 0.9); }
+    body.light-theme input, body.light-theme textarea, body.light-theme pre { background: #e5e7eb; color: #111827; }
+    body.light-theme pre { background: #d1d5db; color: #1f2937; }
+    body.light-theme .article-content, body.light-theme .feedback-content, body.light-theme .options-content, body.light-theme .video-content, body.light-theme .message-box-content { background: #ffffff; color: #111827; }
+    body.portal-view.dark-theme { background: #111827; }
+
+    /* --- Disease badges & Tool section --- */
+    .disease-badge { position: absolute; top: 10px; right: 10px; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; color: white; }
+    .covid-badge { background-color: #ef4444; } .flu-badge { background-color: #3b82f6; }
+    .ebola-badge { background-color: #f59e0b; } .tb-badge { background-color: #10b981; }
+    pre { white-space: pre-wrap; word-wrap: break-word; font-family: 'Courier New', Courier, monospace; }
+    .tech-logo { width: 32px; height: 32px; margin-right: 12px; object-fit: contain; }
+
+    /* --- DYNAMIC SIMULATION STYLES --- */
+    #simulation-container { display: none; height: 100vh; flex-direction: column; user-select:none; background-color: #fff; color: #111;}
+    #simulation-container #top-bar{display:flex; flex-wrap:wrap; gap:8px;padding:8px;background:#f0f0f0;align-items:center;z-index:10;}
+    #simulation-container .btn{padding:6px 12px;border:none;background:lightblue;border-radius:4px;cursor:pointer; font-weight: 500; transition: background-color 0.2s;}
+    #simulation-container .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+    #simulation-container .btn.active{background:#0288d1;color:#fff;}
+    #simulation-container .arrow-btn{font-size:18px;}
+    #simulation-container #zoom-slider{width:120px;}
+    #simulation-container #svg-container{position:relative;flex:1;border:1px solid #ccc;overflow:auto;}
+    #simulation-container svg{transform-origin:top left;transition:transform .2s ease;}
+    #simulation-container .node{cursor:pointer;stroke:#1e7e34;stroke-width:2;}
+    #simulation-container .superspreader circle{stroke: gold !important;stroke-width: 6px !important;stroke-dasharray: 2,2;}
+    #simulation-container .quarantine circle{stroke: purple !important;stroke-width: 4px !important;stroke-dasharray: 6,4;}
+    #simulation-container .edge{stroke:#444;stroke-width:2;}
+    #simulation-container .blink-red{stroke:red!important;fill:red!important;}
+    #simulation-container .blink-green{stroke:green!important;fill:green!important;}
+    #simulation-container .blink-yellow{stroke:gold!important;fill:gold!important;}
+    #simulation-container .trace-path{stroke:blue !important;stroke-width:4px !important;}
+    #simulation-container .trace-node circle{stroke:blue !important;stroke-width:4px !important;}
+    #simulation-container .trace-animate{stroke:blue !important;stroke-width:4px !important;animation:traceAnim 0.5s linear;}
+    @keyframes traceAnim{0%{stroke-dasharray:0,1000;}100%{stroke-dasharray:1000,0;}}
+    #simulation-container #popup-message{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:4px 8px;border-radius:4px;display:none; z-index: 1001;}
+    #simulation-container #nodeDialog{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border:2px solid black;z-index:999;box-shadow:0 4px 8px rgba(0,0,0,0.2);border-radius:8px;width:400px;max-height:80vh;overflow-y:auto; color: #111;}
+    #simulation-container #nodeDialog h3{margin-top:0;margin-bottom:15px;color:#0288d1;}
+    #simulation-container #nodeDialog label{display:block;margin-bottom:5px;font-weight:bold;}
+    #simulation-container #nodeDialog input[type="number"], #simulation-container #nodeDialog input[type="text"]{width:calc(100% - 12px);padding:8px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;}
+    #simulation-container #nodeDialog .person-id-input-group{margin-bottom:15px;padding:10px;border:1px solid #eee;border-radius:5px;}
+    #simulation-container #nodeDialog button{padding:8px 15px;margin-right:10px;border:none;border-radius:4px;cursor:pointer;background:#0288d1;color:white;}
+    #simulation-container #nodeDialog button:last-child{background:#ccc;color:#333;}
+    #simulation-container #nodeDialog .input-error{border:2px solid red !important;}
+    #simulation-container #nodeDialog .symptoms-child-section label{font-weight:normal;display:flex;align-items:center;margin-bottom:2px;}
+    #simulation-container #nodeDialog .symptoms-child-section input[type="checkbox"]{margin-right:5px;}
+    #simulation-container #nodeDialog .symptoms-child-section {margin-top:10px; border-top:1px dashed #eee; padding-top:10px;}
+    #simulation-container #nodeDialog span.error-message{color:red;font-size:0.9em;margin-top:-8px;margin-bottom:10px;display:block;}
+    #simulation-container #symptom-dialog{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border:2px solid #0288d1;z-index:1000;border-radius:8px; color: #111;}
+    #simulation-container #symptom-dialog h3{margin:0 0 8px;font-size:16px;}
+    #simulation-container #symptom-dialog label{display:block;margin:4px 0;font-size:14px;}
+    #simulation-container #counters{position:absolute;top:56px;right:8px;background:rgba(0,0,0,0.05);padding:6px;border-radius:6px;font-size:14px; z-index: 5;}
+    #simulation-container #day-counter{margin-left:12px;font-weight:bold;}
+    #simulation-container .alert-12digit { color: red; font-size: 1em; position: absolute; bottom: 10px; right: 10px; background: #ffeaea; border: 1px solid red; border-radius: 4px; padding: 6px 10px; display: inline-block; z-index: 1002;}
+    </style>
+</head>
+<body class="portal-view text-gray-100 min-h-screen flex flex-col dark-theme">
+
+  <!-- ======================== PORTAL WRAPPER START ======================== -->
+  <div id="portal-wrapper" class="flex flex-col flex-grow">
+    <nav id="portal-nav" class="bg-gray-900/90 backdrop-blur text-gray-100 shadow sticky top-0 z-20">
+      <div class="max-w-7xl mx-auto flex items-center justify-between px-4 py-3">
+        <div class="flex items-center gap-3">
+          <img src="https://upload.wikimedia.org/wikipedia/en/4/41/Flag_of_India.svg" alt="Indian Flag" class="h-7" />
+          <span class="ml-2 font-bold text-lg whitespace-nowrap select-none" id="portalTitle">Contagious Disease Portal</span>
+        </div>
+        <ul class="hidden md:flex items-center gap-6 font-medium">
+          <li><a href="#" class="hover:text-red-400 transition" onclick="showSection('home')"><span data-i18n="navHome">Home</span></a></li>
+          <li><a href="#" class="hover:text-red-400 transition" onclick="showSection('tools')"><span data-i18n="navTools">Tools</span></a></li>
+          <li><a href="#" class="hover:text-red-400 transition" onclick="showGuidelinesSection()"><span data-i18n="navGuidelines">Guidelines</span></a></li>
+          <li><button id="langToggle" onclick="toggleLang()" class="bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded transition">EN</button></li>
+          <li><button id="themeToggle" onclick="toggleTheme()" class="bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded transition" aria-label="Toggle Theme"><span id="themeIcon">🌙</span></button></li>
+          <li><button onclick="showSection('login')" class="bg-gray-800 hover:bg-gray-700 px-4 py-1 rounded transition" type="button"><span data-i18n="loginBtn">Login</span></button></li>
+          <li><button onclick="showSection('signup')" class="bg-red-600 hover:bg-red-700 px-4 py-1 rounded transition text-white" type="button"><span data-i18n="signupBtn">Signup</span></button></li>
+        </ul>
+        <button id="mobileMenuBtn" class="md:hidden text-xl" onclick="toggleMobileMenu()"><i class="fas fa-bars"></i></button>
+      </div>
+      <div id="mobileMenu" class="md:hidden hidden bg-gray-800 px-4 py-2">
+        <ul class="space-y-2">
+          <li><a href="#" class="block py-2 hover:text-red-400" onclick="showSection('home'); toggleMobileMenu()"><span data-i18n="navHome">Home</span></a></li>
+          <li><a href="#" class="block py-2 hover:text-red-400" onclick="showSection('tools'); toggleMobileMenu()"><span data-i18n="navTools">Tools</span></a></li>
+          <li><a href="#" class="block py-2 hover:text-red-400" onclick="showGuidelinesSection(); toggleMobileMenu()"><span data-i18n="navGuidelines">Guidelines</span></a></li>
+          <li class="flex gap-2 py-2">
+            <button onclick="toggleLang()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition flex-1"><span id="langToggleMobile">EN</span></button>
+            <button onclick="toggleTheme()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition flex-1" aria-label="Toggle Theme"><span id="themeIconMobile">🌙</span></button>
+          </li>
+          <li><button onclick="showSection('login'); toggleMobileMenu()" class="w-full bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition mb-2" type="button"><span data-i18n="loginBtn">Login</span></button></li>
+          <li><button onclick="showSection('signup'); toggleMobileMenu()" class="w-full bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition text-white" type="button"><span data-i18n="signupBtn">Signup</span></button></li>
+        </ul>
+      </div>
+    </nav>
+
+    <div id="portal-top-bar" class="w-full bg-gray-800/80 flex flex-col md:flex-row items-center justify-between px-6 py-3 shadow top-bar">
+      <div class="active-date text-lg mb-2 md:mb-0" id="activeDate"></div>
+      <div class="flex gap-8">
+        <div><span class="text-gray-300" data-i18n="activeCasesLabel">Active Cases:</span> <span class="active-case text-xl" id="activeCases">Loading...</span></div>
+        <div><span class="text-gray-300" data-i18n="recoveredCasesLabel">Recovered Cases:</span> <span class="recovered-case text-xl" id="recoveredCases">Loading...</span></div>
+      </div>
+    </div>
+
+    <main id="mainPanel" class="flex-grow flex flex-col items-center justify-center px-2 py-8 transition-colors duration-300">
+      <!-- Home Section -->
+      <section id="homeSection" class="w-full max-w-3xl mx-auto flex flex-col items-center justify-center py-8 fade-in">
+          <h2 class="text-2xl font-bold mb-5 mt-2 text-center" data-i18n="galleryTitle">Contagious Diseases Gallery</h2>
+        <div class="w-full grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+          <figure class="relative group cursor-pointer" onclick="showArticleModal('covid')"><img src="https://img.auntminnie.com/files/base/smg/all/image/2021/09/am.2021_09_09_23_53_2401_SARS-CoV-2_ACE2_binding_400.png?auto=format%2Ccompress&q=70&w=880" alt="COVID-19 Chest X-ray" class="h-40 w-full rounded-xl shadow-lg object-cover object-center border-2 border-white/10 group-hover:scale-105 transition-transform duration-300" /><span class="disease-badge covid-badge">COVID-19</span><figcaption class="absolute bottom-2 left-2 bg-black/60 text-xs text-white px-2 py-1 rounded group-hover:bg-red-500/80 transition-colors" data-i18n="covidXray">COVID-19 X-ray</figcaption></figure>
+          <figure class="relative group cursor-pointer" onclick="showArticleModal('influenza')"><img src="https://respiratory-therapy.com/wp-content/uploads/2016/03/dreamstime_s_44982978.jpg" alt="Influenza Virus" class="h-40 w-full rounded-xl shadow-lg object-cover object-center border-2 border-white/10 group-hover:scale-105 transition-transform duration-300" /><span class="disease-badge flu-badge">Flu</span><figcaption class="absolute bottom-2 left-2 bg-black/60 text-xs text-white px-2 py-1 rounded group-hover:bg-blue-500/80 transition-colors" data-i18n="influenzaVirus">Influenza Virus</figcaption></figure>
+          <figure class="relative group cursor-pointer" onclick="showArticleModal('ebola')"><img src="https://www.gavi.org/sites/default/files/vaccineswork/2021/Thumb/shutterstock_1920915008_h2.jpg" alt="Ebola Virus" class="h-40 w-full rounded-xl shadow-lg object-cover object-center border-2 border-white/10 group-hover:scale-105 transition-transform duration-300" /><span class="disease-badge ebola-badge">Ebola</span><figcaption class="absolute bottom-2 left-2 bg-black/60 text-xs text-white px-2 py-1 rounded group-hover:bg-yellow-500/80 transition-colors" data-i18n="ebolaVirus">Ebola Virus</figcaption></figure>
+          <figure class="relative group cursor-pointer" onclick="showArticleModal('tb')"><img src="https://media.sciencephoto.com/image/f0307401/800wm/F0307401-Tuberculosis_bacterium,_illustration.jpg" alt="Tuberculosis Bacteria" class="h-40 w-full rounded-xl shadow-lg object-cover object-center border-2 border-white/10 group-hover:scale-105 transition-transform duration-300" /><span class="disease-badge tb-badge">TB</span><figcaption class="absolute bottom-2 left-2 bg-black/60 text-xs text-white px-2 py-1 rounded group-hover:bg-green-500/80 transition-colors" data-i18n="tbBacteria">Tuberculosis Bacteria</figcaption></figure>
+        </div>
+        <div class="w-full rounded-xl shadow-xl px-6 py-4 mb-8 backdrop-blur card-bg"><h2 class="text-2xl font-bold mb-2" data-i18n="aboutTitle">About Us</h2><p class="text-base" data-i18n="aboutText">The Contagious Disease Portal is dedicated to providing up-to-date information on contagious diseases, epidemics, and health resources. Our mission is to educate, inform, and empower individuals with reliable data and support during public health crises.</p></div>
+        <h2 class="text-xl font-semibold mb-4" data-i18n="majorEpidemics">Major Epidemics</h2>
+        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+          <div class="epidemic-card bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-xl p-5 flex items-center gap-4 cursor-pointer transition duration-200 shadow-lg" onclick="showOptions('covid')"><img src="https://img.auntminnie.com/files/base/smg/all/image/2021/09/am.2021_09_09_23_53_2401_SARS-CoV-2_ACE2_binding_400.png?auto=format%2Ccompress&q=70&w=880" class="h-24 w-24 object-cover rounded-lg" /><div><div class="text-lg font-bold text-red-400" data-i18n="covid19">COVID-19</div><div class="text-sm" data-i18n="covid19desc">Coronavirus Disease 2019</div></div></div>
+          <div class="epidemic-card bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-xl p-5 flex items-center gap-4 cursor-pointer transition duration-200 shadow-lg" onclick="showOptions('ebola')"><img src="https://www.gavi.org/sites/default/files/vaccineswork/2021/Thumb/shutterstock_1920915008_h2.jpg" class="h-24 w-24 object-cover rounded-lg"/><div><div class="text-lg font-bold text-yellow-400" data-i18n="ebola">Ebola</div><div class="text-sm" data-i18n="ebolaDesc">Ebola Virus Disease</div></div></div>
+          <div class="epidemic-card bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-xl p-5 flex items-center gap-4 cursor-pointer transition duration-200 shadow-lg" onclick="showOptions('influenza')"><img src="https://respiratory-therapy.com/wp-content/uploads/2016/03/dreamstime_s_44982978.jpg" class="h-24 w-24 object-cover rounded-lg"/><div><div class="text-lg font-bold text-blue-400" data-i18n="influenza">Influenza</div><div class="text-sm" data-i18n="influenzaDesc">Seasonal & Pandemic Flu</div></div></div>
+          <div class="epidemic-card bg-gradient-to-br from-gray-700 via-gray-800 to-gray-900 rounded-xl p-5 flex items-center gap-4 cursor-pointer transition duration-200 shadow-lg" onclick="showOptions('tb')"><img src="https://media.sciencephoto.com/image/f0307401/800wm/F0307401-Tuberculosis_bacterium,_illustration.jpg" class="h-24 w-24 object-cover rounded-lg"/><div><div class="text-lg font-bold text-green-400" data-i18n="tb">Tuberculosis</div><div class="text-sm" data-i18n="tbDesc">TB Disease</div></div></div>
+        </div>
+        <div class="w-full rounded-xl shadow-xl px-6 py-6 flex flex-col gap-4 card-bg">
+          <div><span class="font-semibold" data-i18n="helplineNumbers">Helpline Numbers:</span><span class="ml-2" data-i18n="helplineList">1075 (Health Ministry), 1098 (Child), 08046110007 (Mental Health), 14567 (Senior Citizens), 14443 (Ayush)</span></div>
+          <div><span class="font-semibold" data-i18n="websitePolicies">Website Policies:</span><span class="ml-2" data-i18n="privacyPolicyText">Your privacy and security are our top priority. Please review our <a href="#" class="text-red-400 underline" data-i18n="privacyPolicy">Privacy Policy</a>.</span></div>
+          <div><span class="font-semibold" data-i18n="termsOfUse">Terms of Use:</span><span class="ml-2" data-i18n="termsOfServiceText">By using this portal, you agree to our <a href="#" class="text-red-400 underline" data-i18n="termsOfService">Terms of Service</a>.</span></div>
+          <div><span class="font-semibold" data-i18n="feedback">Feedback:</span><button onclick="openFeedback()" class="ml-2 px-4 py-1 bg-red-600 hover:bg-red-700 rounded text-white font-semibold transition" data-i18n="giveFeedback">Give Feedback</button></div>
+        </div>
+      </section>
+
+      <!-- Tools Section -->
+      <section id="toolsSection" class="w-full max-w-5xl mx-auto py-8 hidden fade-in">
+        <div class="card-bg rounded-xl p-6 shadow-lg mb-8">
+            <h3 class="text-xl font-semibold mb-4" data-i18n="aboutModelTitle">About Our Model</h3>
+            <p data-i18n="aboutModelText">Our model is designed for efficient contact tracing and quarantine management using a hierarchical contact list. It leverages graph algorithms to visualize, trace, and control the spread of contagious diseases. The approach is scalable, interactive, and suitable for real-time epidemic management.</p>
+        </div>
+        <div class="card-bg rounded-xl p-6 shadow-lg mb-8">
+            <h3 class="text-xl font-semibold mb-4" data-i18n="algosUsedTitle">Algorithms Used</h3>
+            <ol class="list-decimal list-inside space-y-4">
+                <li><span class="font-bold text-red-400" data-i18n="algo1Title">Algorithm 1: Contact List Hierarchy Creation (K-Ary Tree)</span><pre class="bg-gray-900 rounded p-4 text-sm mt-2">tree = []
+idCounter = 1
+Function addChildNodes(parentNode, numberOfChildren):
+    For i from 1 to numberOfChildren:
+        childNode = { id: idCounter + 1, parent: parentNode.id, level: parentNode.level + 1, color: null }
+        Append childNode to tree
+        idCounter = idCounter + 1</pre></li>
+                <li><span class="font-bold text-blue-400" data-i18n="algo2Title">Algorithm 2: Contact Tracing (Reverse DFS)</span><pre class="bg-gray-900 rounded p-4 text-sm mt-2">Function traceContact()
+    If activeNode is not selected: Exit function
+    currentNode = activeNode, tracedNodes = []
+    While currentNode exists:
+        Add currentNode.id to tracedNodes
+        currentNode = Find node in tree where node.id == currentNode.parent
+    For each nodeElement in diagram:
+        If nodeElement.id is in tracedNodes: Add 'traced' class
+        Else: Remove 'traced' class</pre></li>
+                <li><span class="font-bold text-green-400" data-i18n="algo3Title">Algorithm 3: Quarantine (Reverse Influence Blocking)</span><pre class="bg-gray-900 rounded p-4 text-sm mt-2">Function quarantineContact()
+    If activeNode is not selected: Exit function
+    queue = [activeNode.id], quarantinedNodes = []
+    While queue is not empty:
+        currentId = Dequeue from queue, Add to quarantinedNodes
+        For each node in tree:
+            If node.parent == currentId: Enqueue node.id
+    For each nodeElement in diagram:
+        If nodeElement.id is in quarantinedNodes: Add 'quarantined' class
+        Else: Remove 'quarantined' class</pre></li>
+            </ol>
+        </div>
+        <div class="card-bg rounded-xl p-6 shadow-lg">
+            <h3 class="text-xl font-semibold mb-4" data-i18n="techStackTitle">Technology Stack Used</h3>
+            <ul class="space-y-4">
+                <li class="flex items-center"><img src="https://upload.wikimedia.org/wikipedia/commons/6/61/HTML5_logo_and_wordmark.svg" alt="HTML5 Logo" class="tech-logo"><span data-i18n="techHtml">HTML</span></li>
+                <li class="flex items-center"><img src="https://upload.wikimedia.org/wikipedia/commons/d/d5/CSS3_logo_and_wordmark.svg" alt="CSS3 Logo" class="tech-logo"><span data-i18n="techCss">CSS (with Tailwind CSS for rapid UI styling)</span></li>
+                <li class="flex items-center"><img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" alt="JavaScript Logo" class="tech-logo"><span data-i18n="techJs">JavaScript (for interactivity and algorithm implementation)</span></li>
+            </ul>
+        </div>
+      </section>
+
+      <!-- Guidelines Section -->
+      <section id="guidelinesSection" class="w-full max-w-5xl mx-auto py-8 hidden fade-in">
+        <h2 class="text-2xl font-bold mb-8 text-center" data-i18n="guidelinesTitle">Government Guidelines for Contagious Diseases</h2>
+        <div id="guidelinesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+      </section>
+
+      <!-- Login Section -->
+      <section id="loginSection" class="w-full max-w-3xl mx-auto flex flex-col items-center justify-center py-8 hidden fade-in">
+          <div class="flex flex-col md:flex-row rounded-xl shadow-xl w-full overflow-hidden card-bg">
+              <section class="flex flex-col justify-center p-8 md:w-1/2">
+                  <form id="loginForm" class="space-y-4" autocomplete="off" novalidate>
+                      <h2 class="text-2xl font-semibold mb-1 text-center" data-i18n="welcomeBack">Welcome back</h2>
+                      <p class="mb-6 text-center" data-i18n="loginToAccount">Login to your account</p>
+                      
+                      <label for="loginEmail" class="block" data-i18n="enterEmail">Enter your Email</label>
+                      <input type="email" id="loginEmail" name="loginEmail" required placeholder="email@example.com" class="w-full rounded-md bg-gray-700 placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600" />
+                      <span class="error-message" id="loginEmailError"></span>
+
+                      <label for="loginPassword" class="block" data-i18n="enterPassword">Enter your Password</label>
+                      <input type="password" id="loginPassword" name="loginPassword" required placeholder="Password" class="w-full rounded-md bg-gray-700 placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600" />
+                      <span class="error-message" id="loginPasswordError"></span>
+
+                      <div class="flex items-center space-x-3 border rounded-md bg-gray-700 px-4 py-2">
+                          <input type="checkbox" id="loginCaptcha" required class="h-5 w-5 text-red-600 bg-gray-800 rounded border-gray-600 focus:ring-red-500" />
+                          <label for="loginCaptcha" class="select-none flex-1 text-sm" data-i18n="notRobot">I'm not a robot</label>
+                      </div>
+                      <span class="error-message" id="loginCaptchaError"></span>
+                      <button type="submit" class="w-full bg-red-600 hover:bg-red-700 font-semibold rounded-md px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed transition" data-i18n="continue">Continue</button>
+                      <p class="text-center text-sm mt-6"><span data-i18n="dontHaveAccount">Don't have an account?</span> <a href="#" onclick="showSection('signup')" class="text-red-600 hover:underline font-semibold" data-i18n="signUp">Sign up</a></p>
+                  </form>
+              </section>
+              <section class="hidden md:block md:w-1/2 relative bg-gray-700"><img src="https://images.unsplash.com/photo-1584036561566-baf8f5f1b144?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="Contagious Disease Portal" class="object-cover object-center w-full h-full rounded-r-xl" /></section>
+          </div>
+      </section>
+
+      <!-- Signup Section -->
+      <section id="signupSection" class="w-full max-w-3xl mx-auto flex flex-col items-center justify-center py-8 hidden fade-in">
+          <div class="flex flex-col md:flex-row rounded-xl shadow-xl w-full overflow-hidden card-bg">
+              <section class="flex flex-col justify-center p-8 md:w-1/2">
+                  <form id="signupForm" class="space-y-4" autocomplete="off" novalidate>
+                      <h2 class="text-2xl font-semibold mb-1 text-center" data-i18n="createAccount">Create your account</h2>
+                      <p class="mb-6 text-center" data-i18n="signupToAccess">Sign up to access Contagious Disease Portal</p>
+                      <label for="signupEmail" class="block" data-i18n="enterEmail">Enter your Email</label>
+                      <input type="email" id="signupEmail" name="signupEmail" required placeholder="email@example.com" class="w-full rounded-md bg-gray-700 placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600" />
+                      <span class="error-message" id="signupEmailError"></span>
+                      <label for="signupPassword" class="block" data-i18n="createPassword">Create a Password</label>
+                      <input type="password" id="signupPassword" name="signupPassword" required placeholder="Password (min. 6 chars)" class="w-full rounded-md bg-gray-700 placeholder-gray-400 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600" />
+                      <span class="error-message" id="signupPasswordError"></span>
+                      <div class="flex items-center space-x-3 border rounded-md bg-gray-700 px-4 py-2">
+                          <input type="checkbox" id="signupCaptcha" required class="h-5 w-5 text-red-600 bg-gray-800 rounded border-gray-600 focus:ring-red-500" />
+                          <label for="signupCaptcha" class="select-none flex-1 text-sm" data-i18n="notRobot">I'm not a robot</label>
+                      </div>
+                      <span class="error-message" id="signupCaptchaError"></span>
+                      <button type="submit" class="w-full bg-red-600 hover:bg-red-700 font-semibold rounded-md px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed transition" data-i18n="signUp">Sign Up</button>
+                      <p class="text-center text-sm mt-6"><span data-i18n="alreadyHaveAccount">Already have an account?</span> <a href="#" onclick="showSection('login')" class="text-red-600 hover:underline font-semibold" data-i18n="loginBtn">Login</a></p>
+                  </form>
+              </section>
+              <section class="hidden md:block md:w-1/2 relative bg-gray-700"><img src="https://images.unsplash.com/photo-1584036561566-baf8f5f1b144?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="Contagious Disease Portal" class="object-cover object-center w-full h-full rounded-r-xl" /></section>
+          </div>
+      </section>
+    </main>
+
+    <!-- Portal Modals -->
+    <div class="article-modal" id="articleModal"><div class="article-content relative"><span class="close-modal" onclick="closeArticleModal()">×</span><div id="articleBody"></div></div></div>
+    <div class="video-modal" id="videoModal"><div class="video-content relative"><span class="close-video" onclick="closeVideoModal()">×</span><h3 class="text-xl font-bold mb-3" id="videoTitle"></h3><div id="videoPlayer" class="relative w-full overflow-hidden" style="padding-top: 56.25%;"></div></div></div>
+    <div class="options-modal" id="optionsModal"><div class="options-content relative text-center"><span class="close-options" onclick="closeOptionsModal()">×</span><h3 class="text-xl font-bold mb-6" id="optionsTitle"></h3><div class="flex flex-col gap-4"><button class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded transition" onclick="openArticlePdf()"><span data-i18n="viewArticle">View Article (PDF)</span></button><button class="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded transition" onclick="playAnalysisVideo()"><span data-i18n="watchVideo">Watch Analysis Video</span></button></div></div></div>
+    <div class="feedback-modal" id="feedbackModal"><div class="feedback-content relative"><span class="close-feedback" onclick="closeFeedback()">×</span><h3 class="text-xl font-bold mb-3" data-i18n="feedback">Feedback</h3><form id="feedbackForm" class="space-y-4"><div><label for="fbName" class="block mb-1" data-i18n="name">Name</label><input type="text" id="fbName" name="fbName" required class="w-full rounded-md bg-gray-700 px-3 py-2 focus:outline-none" /></div><div><label for="fbEmail" class="block mb-1" data-i18n="email">Email</label><input type="email" id="fbEmail" name="fbEmail" required class="w-full rounded-md bg-gray-700 px-3 py-2 focus:outline-none" /></div><div><label for="fbPhone" class="block mb-1" data-i18n="phone">Phone Number</label><input type="tel" id="fbPhone" name="fbPhone" required pattern="[0-9]{10}" class="w-full rounded-md bg-gray-700 px-3 py-2 focus:outline-none" /></div><div><label for="fbMessage" class="block mb-1" data-i18n="feedbackMsg">Feedback Message</label><textarea id="fbMessage" name="fbMessage" required rows="3" class="w-full rounded-md bg-gray-700 px-3 py-2 focus:outline-none"></textarea></div><button type="submit" class="w-full bg-red-600 hover:bg-red-700 font-semibold rounded-md px-4 py-2" data-i18n="submit">Submit</button><div id="fbSuccess" class="text-green-400 mt-2 hidden" data-i18n="thankYou">Thank you for your feedback!</div></form></div></div>
+    <div class="message-box" id="messageBox"><div class="message-box-content text-center"><p id="messageBoxText" class="text-lg font-semibold"></p><button onclick="closeMessageBox()" class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-white font-semibold">OK</button></div></div>
+    
+    <footer id="portal-footer" class="text-center text-gray-500 text-xs py-4 px-4 select-none">
+      <span id="footerText"><span data-i18n="footerText">By clicking continue, you agree to our</span> <a href="#" class="underline hover:text-red-600" data-i18n="termsOfService">Terms of Service</a> <span data-i18n="and">and</span> <a href="#" class="underline hover:text-red-600" data-i18n="privacyPolicy">Privacy Policy</a>.</span>
+    </footer>
+  </div>
+  <!-- ======================== PORTAL WRAPPER END ======================== -->
+
+
+  <!-- ======================== SIMULATION CONTAINER ======================== -->
+  <div id="simulation-container">
+    <div id="top-bar">
+      <button id="logoutBtn" class="btn" style="background-color: #d32f2f; color: white; font-weight: bold;"><i class="fas fa-sign-out-alt" style="margin-right: 6px;"></i>Logout</button>
+      <button id="sympBtn" class="btn">Probable Symptoms</button>
+      <button id="traceBtn" class="btn">Contact Tracing</button>
+      <button id="superBtn" class="btn">Super Spreader Detection</button>
+      <button id="removeSuperBtn" class="btn">Remove Superspreaders</button>
+      <button id="quarBtn" class="btn">Quarantine</button>
+      <button id="backBtn" class="arrow-btn btn">←</button>
+      <button id="fwdBtn" class="arrow-btn btn">→</button>
+      <button id="animateBtn" class="btn">Animate</button>
+      <input id="zoom-slider" type="range" min="10" max="200" value="100"/><span id="zoom-label">100%</span>
+      <span id="day-counter">Day: 0</span>
+    </div>
+    <div id="counters">Infected:0 | Non-Infected:0 | Suspected:0</div>
+    <div id="svg-container">
+      <svg id="treeSVG"></svg>
+      <div id="popup-message"></div>
+    </div>
+    <!-- Add Contact Dialog -->
+    <div id="nodeDialog">
+      <h3>Add Contacts</h3>
+      <label>Number of persons in contact:</label>
+      <input type="number" id="numPersons" min="1" />
+      <span id="numPersonsError" class="error-message"></span>
+      <div id="idInputsContainer"></div>
+      <button id="submitNodeDialogBtn" type="button">Submit</button>
+      <button id="cancelNodeDialogBtn" type="button">Cancel</button>
+    </div>
+    <!-- Probable Symptoms Dialog -->
+    <div id="symptom-dialog">
+      <h3>Probable Symptoms</h3>
+      <form id="symForm">
+        <div id="symptomCheckboxes"></div>
+        <label>Custom: <input type="text" id="customSym"/></label><br/>
+        <button type="submit" class="btn" style="margin-top: 10px;">Save</button>
+        <button type="button" id="cancelSymBtn" class="btn" style="background:#ccc;color:#222;">Cancel</button>
+      </form>
+    </div>
+  </div>
+  <!-- ======================== SIMULATION CONTAINER END ======================== -->
+
+
+  <!-- ======================== SCRIPTS ======================== -->
+  <script>
+    // ########################### GLOBAL AND PORTAL SCRIPT ###########################
+    const translations = {
+      en: {
+        navHome: "Home", navTools: "Tools", navGuidelines: "Guidelines", loginBtn: "Login", signupBtn: "Signup", activeCasesLabel: "Active Cases:", recoveredCasesLabel: "Recovered Cases:",
+        galleryTitle: "Contagious Diseases Gallery", covidXray: "COVID-19 X-ray", influenzaVirus: "Influenza Virus", ebolaVirus: "Ebola Virus", tbBacteria: "Tuberculosis Bacteria",
+        aboutTitle: "About Us", aboutText: "The Contagious Disease Portal is dedicated to providing up-to-date information on contagious diseases, epidemics, and health resources. Our mission is to educate, inform, and empower individuals with reliable data and support during public health crises.",
+        majorEpidemics: "Major Epidemics", covid19: "COVID-19", covid19desc: "Coronavirus Disease 2019", ebola: "Ebola", ebolaDesc: "Ebola Virus Disease", influenza: "Influenza", influenzaDesc: "Seasonal & Pandemic Flu", tb: "Tuberculosis", tbDesc: "TB Disease",
+        helplineNumbers: "Helpline Numbers:", helplineList: "1075 (Health Ministry), 1098 (Child), 08046110007 (Mental Health), 14567 (Senior Citizens), 14443 (Ayush)",
+        websitePolicies: "Website Policies:", privacyPolicyText: "Your privacy and security are our top priority. Please review our <a href='#' class='text-red-400 underline' data-i18n='privacyPolicy'>Privacy Policy</a>.", privacyPolicy: "Privacy Policy",
+        termsOfUse: "Terms of Use:", termsOfServiceText: "By using this portal, you agree to our <a href='#' class='text-red-400 underline' data-i18n='termsOfService'>Terms of Service</a>.", termsOfService: "Terms of Service",
+        feedback: "Feedback", giveFeedback: "Give Feedback", welcomeBack: "Welcome back", loginToAccount: "Login to your account", enterEmail: "Enter your Email", enterPassword: "Enter your Password", notRobot: "I'm not a robot", continue: "Continue",
+        dontHaveAccount: "Don't have an account?", signUp: "Sign up", createAccount: "Create your account", signupToAccess: "Sign up to access Contagious Disease Portal", createPassword: "Create a Password",
+        alreadyHaveAccount: "Already have an account?", name: "Name", email: "Email", phone: "Phone Number", feedbackMsg: "Feedback Message", submit: "Submit", thankYou: "Thank you for your feedback!",
+        footerText: "By clicking continue, you agree to our", and: "and", viewArticle: "View Article (PDF)", watchVideo: "Watch Analysis Video", chooseOption: "Choose an Option for ", videoAnalysisOf: "Video Analysis of ",
+        guidelinesTitle: "Government Guidelines for Contagious Diseases",
+        aboutModelTitle: "About Our Model",
+        aboutModelText: "Our model is designed for efficient contact tracing and quarantine management using a hierarchical contact list. It leverages graph algorithms to visualize, trace, and control the spread of contagious diseases. The approach is scalable, interactive, and suitable for real-time epidemic management.",
+        algosUsedTitle: "Algorithms Used",
+        algo1Title: "Algorithm 1: Contact List Hierarchy Creation (K-Ary Tree)",
+        algo2Title: "Algorithm 2: Contact Tracing (Reverse DFS)",
+        algo3Title: "Algorithm 3: Quarantine (Reverse Influence Blocking)",
+        techStackTitle: "Technology Stack Used",
+        techHtml: "HTML",
+        techCss: "CSS (with Tailwind CSS for rapid UI styling)",
+        techJs: "JavaScript (for interactivity and algorithm implementation)",
+        covidGuidelinesTitle: "COVID-19 Guidelines",
+        influenzaGuidelinesTitle: "Influenza (Flu) Guidelines",
+        ebolaGuidelinesTitle: "Ebola Virus Disease Guidelines",
+        tbGuidelinesTitle: "Tuberculosis (TB) Guidelines"
+      },
+      hi: {
+        navHome: "मुख्य पृष्ठ", navTools: "उपकरण", navGuidelines: "दिशानिर्देश", loginBtn: "लॉगिन", signupBtn: "साइनअप", activeCasesLabel: "सक्रिय मामले:", recoveredCasesLabel: "ठीक हुए मामले:",
+        galleryTitle: "संक्रामक रोग गैलरी", covidXray: "कोविड-19 एक्स-रे", influenzaVirus: "इन्फ्लुएंजा वायरस", ebolaVirus: "इबोला वायरस", tbBacteria: "क्षय रोग बैक्टीरिया",
+        aboutTitle: "हमारे बारे में", aboutText: "संक्रामक रोग पोर्टल संक्रामक रोगों, महामारियों और स्वास्थ्य संसाधनों पर नवीनतम जानकारी प्रदान करने के लिए समर्पित है। हमारा मिशन सार्वजनिक स्वास्थ्य संकट के दौरान विश्वसनीय डेटा और समर्थन के साथ व्यक्तियों को शिक्षित, सूचित और सशक्त बनाना है।",
+        majorEpidemics: "प्रमुख महामारियाँ", covid19: "कोविड-19", covid19desc: "कोरोनावायरस रोग 2019", ebola: "इबोला", ebolaDesc: "इबोला वायरस रोग", influenza: "इन्फ्लुएंजा", influenzaDesc: "मौसमी और महामारी फ्लू", tb: "क्षय रोग", tbDesc: "टीबी रोग",
+        helplineNumbers: "हेल्पलाइन नंबर:", helplineList: "1075 (स्वास्थ्य मंत्रालय), 1098 (बाल), 08046110007 (मानसिक स्वास्थ्य), 14567 (वरिष्ठ नागरिक), 14443 (आयुष)",
+        websitePolicies: "वेबसाइट नीतियाँ:", privacyPolicyText: "आपकी गोपनीयता और सुरक्षा हमारी सर्वोच्च प्राथमिकता है। कृपया हमारी <a href='#' class='text-red-400 underline' data-i18n='privacyPolicy'>गोपनीयता नीति</a> देखें।", privacyPolicy: "गोपनीयता नीति",
+        termsOfUse: "उपयोग की शर्तें:", termsOfServiceText: "इस पोर्टल का उपयोग करके, आप हमारी <a href='#' class='text-red-400 underline' data-i18n='termsOfService'>सेवा की शर्तों</a> से सहमत होते हैं।", termsOfService: "सेवा की शर्तें",
+        feedback: "प्रतिक्रिया", giveFeedback: "प्रतिक्रिया दें", welcomeBack: "वापस स्वागत है", loginToAccount: "अपने खाते में लॉगिन करें", enterEmail: "अपना ईमेल दर्ज करें", enterPassword: "अपना पासवर्ड दर्ज करें", notRobot: "मैं रोबोट नहीं हूँ", continue: "जारी रखें",
+        dontHaveAccount: "खाता नहीं है?", signUp: "साइन अप", createAccount: "अपना खाता बनाएँ", signupToAccess: "संक्रामक रोग पोर्टल तक पहुँचने के लिए साइन अप करें", createPassword: "पासवर्ड बनाएँ",
+        alreadyHaveAccount: "पहले से खाता है?", name: "नाम", email: "ईमेल", phone: "फ़ोन नंबर", feedbackMsg: "प्रतिक्रिया संदेश", submit: "जमा करें", thankYou: "आपकी प्रतिक्रिया के लिए धन्यवाद!",
+        footerText: "जारी रखने पर, आप हमारी", and: "और", viewArticle: "लेख देखें (PDF)", watchVideo: "विश्लेषण वीडियो देखें", chooseOption: "के लिए एक विकल्प चुनें ", videoAnalysisOf: "का वीडियो विश्लेषण ",
+        guidelinesTitle: "संक्रामक रोगों के लिए सरकारी दिशानिर्देश",
+        aboutModelTitle: "हमारे मॉडल के बारे में",
+        aboutModelText: "हमारा मॉडल एक पदानुक्रमित संपर्क सूची का उपयोग करके कुशल संपर्क ट्रेसिंग और संगरोध प्रबंधन के लिए डिज़ाइन किया गया है। यह संक्रामक रोगों के प्रसार की कल्पना, पता लगाने और नियंत्रित करने के लिए ग्राफ एल्गोरिदम का लाभ उठाता है। यह दृष्टिकोण स्केलेबल, इंटरैक्टिव और वास्तविक समय महामारी प्रबंधन के लिए उपयुक्त है।",
+        algosUsedTitle: "प्रयुक्त एल्गोरिदम",
+        algo1Title: "एल्गोरिथम 1: संपर्क सूची पदानुक्रम निर्माण (के-एरी ट्री)",
+        algo2Title: "एल्गोरिथम 2: संपर्क ट्रेसिंग (रिवर्स डीएफएस)",
+        algo3Title: "एल्गोरिथम 3: संगरोध (रिवर्स प्रभाव अवरोधन)",
+        techStackTitle: "प्रयुक्त प्रौद्योगिकी स्टैक",
+        techHtml: "एचटीएमएल",
+        techCss: "सीएसएस (तेजी से यूआई स्टाइल के लिए टेलविंड सीएसएस के साथ)",
+        techJs: "जावास्क्रिप्ट (अंतरक्रियाशीलता और एल्गोरिथम कार्यान्वयन के लिए)",
+        covidGuidelinesTitle: "कोविड-19 दिशानिर्देश",
+        influenzaGuidelinesTitle: "इन्फ्लुएंजा (फ्लू) दिशानिर्देश",
+        ebolaGuidelinesTitle: "इबोला वायरस रोग दिशानिर्देश",
+        tbGuidelinesTitle: "क्षय रोग (टीबी) दिशानिर्देश"
+      }
+    };
+
+    let userDatabase = JSON.parse(localStorage.getItem('userDB')) || [];
+    let currentLang = "en", currentDiseaseKey = '', currentThemeIsDark = true;
+    let simulationInstance = null; 
+
+    function saveUserDB() { localStorage.setItem('userDB', JSON.stringify(userDatabase)); }
+    function toggleMobileMenu() { document.getElementById('mobileMenu').classList.toggle('hidden'); }
+    
+    function toggleLang() {
+      currentLang = currentLang === "en" ? "hi" : "en";
+      document.getElementById("langToggle").textContent = currentLang === "en" ? "EN" : "HI";
+      document.getElementById("langToggleMobile").textContent = currentLang === "en" ? "EN" : "HI";
+      applyTranslations(); updateActiveDate();
+      if (!document.getElementById('guidelinesSection').classList.contains('hidden')) renderGuidelines();
+    }
+
+    function applyTranslations() {
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (translations[currentLang][key]) {
+            if (["privacyPolicyText", "termsOfServiceText"].includes(key)) el.innerHTML = translations[currentLang][key];
+            else el.textContent = translations[currentLang][key];
+        }
+      });
+    }
+
+    function showSection(sectionId) {
+      ['home', 'tools', 'guidelines', 'login', 'signup'].forEach(id => document.getElementById(id + 'Section').classList.add('hidden'));
+      const targetSection = document.getElementById(sectionId + 'Section');
+      targetSection.classList.remove('hidden');
+      setTimeout(() => { targetSection.classList.add('fade-in'); }, 10);
+      applyTranslations();
+    }
+
+    function updateActiveDate() {
+        const now = new Date(), utc = now.getTime() + (now.getTimezoneOffset() * 60000), istTime = new Date(utc + (3600000 * 5.5));
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const dateStr = istTime.toLocaleDateString(currentLang === "en" ? "en-IN" : "hi-IN", options);
+        const timeStr = istTime.toLocaleTimeString(currentLang === "en" ? "en-IN" : "hi-IN", { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+        document.getElementById('activeDate').textContent = `${currentLang === "en" ? "Active Date" : "सक्रिय तिथि"}: ${dateStr}, ${timeStr} IST`;
+    }
+
+    const articles = {
+      covid: { titleKey: "covid19", body: `<p><strong>COVID-19</strong> is a respiratory illness caused by the SARS-CoV-2 virus. Key symptoms include fever, cough, and shortness of breath.</p>`, articlePdfUrl: "https://www.who.int/news-room/fact-sheets/detail/coronavirus-disease-(covid-19)", analysisVideoUrl: "https://www.youtube.com/embed/5DGwOJXSxqg" },
+      ebola: { titleKey: "ebola", body: `<p><strong>Ebola</strong> is a severe and often fatal illness caused by the Ebola virus. It is transmitted to people from wild animals and spreads in the human population through human-to-human transmission.</p>`, articlePdfUrl: "https://www.who.int/news-room/fact-sheets/detail/ebola-disease", analysisVideoUrl: "https://www.youtube.com/embed/jdk2Zhp6FRA" },
+      influenza: { titleKey: "influenza", body: `<p><strong>Influenza (Flu)</strong> is a contagious respiratory illness caused by influenza viruses that infect the nose, throat, and sometimes the lungs. It can cause mild to severe illness.</p>`, articlePdfUrl: "https://www.who.int/news-room/fact-sheets/detail/influenza-(seasonal)", analysisVideoUrl: "https://www.youtube.com/embed/oXzwtGFyBik" },
+      tb: { titleKey: "tb", body: `<p><strong>Tuberculosis (TB)</strong> is an infectious disease usually caused by Mycobacterium tuberculosis (MTB) bacteria. Tuberculosis generally affects the lungs, but can also affect other parts of the body.</p>`, articlePdfUrl: "https://www.who.int/news-room/fact-sheets/detail/tuberculosis", analysisVideoUrl: "https://www.youtube.com/embed/UKV8Zn7x0wM" }
+    };
+    
+    const guidelines = {
+        covid: { titleKey: "covidGuidelinesTitle", content: `<p>Key measures advised by the Ministry of Health and Family Welfare, Govt. of India:</p><ul class="list-disc list-inside space-y-2 mt-2 text-left"><li><strong>Masking:</strong> Use of face masks is advisable in crowded and closed spaces.</li><li><strong>Social Distancing:</strong> Maintain physical distance in public places to reduce transmission.</li><li><strong>Hand Hygiene:</strong> Wash hands frequently with soap and water for at least 20 seconds, or use an alcohol-based sanitizer.</li><li><strong>Testing & Isolation:</strong> If you have symptoms, get tested and isolate yourself until you receive a negative report or recover fully.</li><li><strong>Vaccination:</strong> Ensure you are fully vaccinated, including any recommended booster doses.</li></ul><p class="mt-4 text-sm text-gray-400"><em>Source: MoHFW, Govt. of India</em></p>`, image: "https://img.auntminnie.com/files/base/smg/all/image/2021/09/am.2021_09_09_23_53_2401_SARS-CoV-2_ACE2_binding_400.png?auto=format%2Ccompress&q=70&w=200"},
+        influenza: { titleKey: "influenzaGuidelinesTitle", content: `<p>Preventive measures for Seasonal Influenza (Flu) as per NCDC:</p><ul class="list-disc list-inside space-y-2 mt-2 text-left"><li><strong>Annual Flu Shot:</strong> Get the flu vaccine every year, as the virus strains change. It is especially important for children, the elderly, and those with comorbidities.</li><li><strong>Respiratory Etiquette:</strong> Cover your mouth and nose with a tissue or your elbow when you cough or sneeze.</li><li><strong>Avoid Touching Face:</strong> Refrain from touching your eyes, nose, and mouth to prevent germs from entering your body.</li><li><strong>Stay Home:</strong> If you are sick with flu-like symptoms, stay home for at least 24 hours after your fever is gone.</li></ul><p class="mt-4 text-sm text-gray-400"><em>Source: NCDC, India</em></p>`, image: "https://respiratory-therapy.com/wp-content/uploads/2016/03/dreamstime_s_44982978.jpg"},
+        ebola: { titleKey: "ebolaGuidelinesTitle", content: `<p>Critical guidelines for preventing Ebola Virus Disease (EVD):</p><ul class="list-disc list-inside space-y-2 mt-2 text-left"><li><strong>Strict Avoidance:</strong> Avoid all contact with blood, body fluids (like urine, feces, vomit), and tissues of people who are sick or have died from EVD.</li><li><strong>Animal Contact:</strong> Avoid contact with bats and non-human primates or their raw meat.</li><li><strong>Healthcare Safety:</strong> Healthcare workers must use strict infection control measures, including appropriate personal protective equipment (PPE).</li><li><strong>Safe Burials:</strong> Funerals that involve direct contact with the body of the deceased should be avoided.</li></ul><p class="mt-4 text-sm text-gray-400"><em>Source: WHO Guidelines</em></p>`, image: "https://www.gavi.org/sites/default/files/vaccineswork/2021/Thumb/shutterstock_1920915008_h2.jpg"},
+        tb: { titleKey: "tbGuidelinesTitle", content: `<p>Guidelines under the Revised National TB Control Programme (RNTCP):</p><ul class="list-disc list-inside space-y-2 mt-2 text-left"><li><strong>Complete Treatment (DOTS):</strong> Patients must complete the full, uninterrupted course of medication under the Directly Observed Treatment, Short-course (DOTS) strategy.</li><li><strong>Good Ventilation:</strong> TB spreads in poorly ventilated spaces. Ensure fresh air circulation in homes and workplaces.</li><li><strong>Early Diagnosis:</strong> Anyone with a persistent cough for two weeks or more should be tested for TB.</li><li><strong>BCG Vaccine:</strong> The BCG vaccine is given to infants and young children in India to prevent severe forms of TB.</li></ul><p class="mt-4 text-sm text-gray-400"><em>Source: RNTCP, India</em></p>`, image: "https://media.sciencephoto.com/image/f0307401/800wm/F0307401-Tuberculosis_bacterium,_illustration.jpg"}
+    };
+
+    function renderGuidelines() {
+      const container = document.getElementById('guidelinesContainer');
+      container.innerHTML = '';
+      Object.keys(guidelines).forEach(key => {
+        const g = guidelines[key];
+        const card = document.createElement('div');
+        card.className = `p-6 rounded-xl shadow-lg flex flex-col items-center text-center card-bg guideline-card`;
+        const textColorClass = key === 'covid' ? 'text-red-400' : key === 'influenza' ? 'text-blue-400' : key === 'ebola' ? 'text-yellow-400' : 'text-green-400';
+        card.innerHTML = `<img src="${g.image}" alt="${key} image" class="h-24 w-24 object-cover object-center rounded-full mb-4 border-2"><h3 class="text-xl font-semibold mb-3 ${textColorClass}" data-i18n="${g.titleKey}"></h3><div class="text-sm text-left">${g.content}</div>`;
+        container.appendChild(card);
+      });
+      applyTranslations();
+    }
+
+    function showGuidelinesSection() { showSection('guidelines'); renderGuidelines(); }
+    
+    // Modal controls
+    function closeArticleModal() { document.getElementById('articleModal').style.display = 'none'; }
+    function closeVideoModal() { document.getElementById('videoPlayer').innerHTML=''; document.getElementById('videoModal').style.display = 'none'; }
+    function closeOptionsModal() { document.getElementById('optionsModal').style.display = 'none'; }
+    function closeFeedback() { document.getElementById('feedbackModal').style.display = 'none'; document.getElementById('fbSuccess').classList.add('hidden'); document.getElementById('feedbackForm').reset(); }
+    function showMessageBox(message) { document.getElementById('messageBoxText').textContent = message; document.getElementById('messageBox').style.display = 'flex'; }
+    function closeMessageBox() { document.getElementById('messageBox').style.display = 'none'; }
+    
+    function showArticleModal(key) {
+      const article = articles[key];
+      const title = translations[currentLang][article.titleKey] || article.titleKey;
+      document.getElementById('articleBody').innerHTML = `<h3 class="text-xl font-bold mb-3">${title}</h3>${article.body}`;
+      document.getElementById('articleModal').style.display = 'flex';
+    }
+
+    function showOptions(key) {
+      currentDiseaseKey = key;
+      const title = translations[currentLang][articles[key].titleKey] || articles[key].titleKey;
+      document.getElementById('optionsTitle').textContent = `${translations[currentLang].chooseOption} ${title}`;
+      document.getElementById('optionsModal').style.display = 'flex';
+    }
+
+    function openArticlePdf() { if(currentDiseaseKey) window.open(articles[currentDiseaseKey].articlePdfUrl, '_blank'); closeOptionsModal(); }
+    
+    function playAnalysisVideo() {
+        if(currentDiseaseKey){
+            const title = translations[currentLang][articles[currentDiseaseKey].titleKey];
+            document.getElementById('videoTitle').textContent = `${translations[currentLang].videoAnalysisOf} ${title}`;
+            document.getElementById('videoPlayer').innerHTML = `<iframe class="absolute top-0 left-0 w-full h-full" src="${articles[currentDiseaseKey].analysisVideoUrl}" title="Video for ${title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            document.getElementById('videoModal').style.display = 'flex';
+        }
+        closeOptionsModal();
+    }
+    
+    function openFeedback() { document.getElementById('feedbackModal').style.display = 'flex'; }
+    document.getElementById('feedbackForm').addEventListener('submit', (e) => { e.preventDefault(); document.getElementById('fbSuccess').classList.remove('hidden'); setTimeout(closeFeedback, 2000); });
+
+    function toggleTheme() {
+      document.body.classList.toggle('light-theme');
+      document.body.classList.toggle('dark-theme');
+      currentThemeIsDark = document.body.classList.contains('dark-theme');
+      const newIcon = currentThemeIsDark ? "🌙" : "☀️";
+      document.getElementById('themeIcon').textContent = newIcon;
+      document.getElementById('themeIconMobile').textContent = newIcon;
+    }
+    
+    function validateField(input, validationFn, errorElement, errorMessage) {
+        if (validationFn(input.value)) {
+            input.classList.add('valid'); input.classList.remove('invalid');
+            errorElement.classList.remove('show'); return true;
+        } else {
+            input.classList.remove('valid'); input.classList.add('invalid');
+            errorElement.textContent = errorMessage; errorElement.classList.add('show');
+            return false;
+        }
+    }
+
+    function handleLogout() {
+        const portal = document.getElementById('portal-wrapper');
+        const sim = document.getElementById('simulation-container');
+        sim.classList.add('logout-animation');
+        setTimeout(() => {
+            sim.style.display = 'none';
+            sim.classList.remove('logout-animation');
+            portal.style.display = 'flex';
+            portal.classList.remove('logout-animation'); 
+            document.body.classList.remove('simulation-view');
+            document.body.classList.add('portal-view');
+            showSection('login');
+            if (simulationInstance) {
+                simulationInstance.destroy();
+                simulationInstance = null;
+            }
+        }, 1400);
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('signupForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signupEmail'), password = document.getElementById('signupPassword'), captcha = document.getElementById('signupCaptcha');
+            const isEmailValid = validateField(email, val => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) && !userDatabase.some(u => u.email === val), email.nextElementSibling, "Valid email required or already exists.");
+            const isPasswordValid = validateField(password, val => val.length >= 6, password.nextElementSibling, "Password must be at least 6 characters.");
+            const isCaptchaValid = validateField(captcha, val => captcha.checked, captcha.parentElement.nextElementSibling, "Please check the box.");
+
+            if (isEmailValid && isPasswordValid && isCaptchaValid) {
+                userDatabase.push({ email: email.value, password: password.value });
+                saveUserDB();
+                showMessageBox("Account created successfully! Please login.");
+                showSection('login');
+                e.target.reset();
+                [email, password, captcha].forEach(el => el.classList.remove('valid', 'invalid'));
+            }
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail'), password = document.getElementById('loginPassword'), captcha = document.getElementById('loginCaptcha');
+            const isEmailValid = validateField(email, val => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), email.nextElementSibling, "Please enter a valid email.");
+            const isPasswordValid = validateField(password, val => val.length > 0, password.nextElementSibling, "Password cannot be empty.");
+            const isCaptchaValid = validateField(captcha, val => captcha.checked, captcha.parentElement.nextElementSibling, "Please check the box.");
+
+            if (isEmailValid && isPasswordValid && isCaptchaValid) {
+                const user = userDatabase.find(u => u.email === email.value && u.password === password.value);
+                if (user) {
+                    document.getElementById('portal-wrapper').style.display = 'none';
+                    document.getElementById('simulation-container').style.display = 'flex';
+                    document.body.classList.remove('portal-view');
+                    document.body.classList.add('simulation-view');
+                    if (!simulationInstance) {
+                        simulationInstance = new EpidemicSimulation();
+                        simulationInstance.init();
+                    }
+                    e.target.reset();
+                    [email, password, captcha].forEach(el => el.classList.remove('valid', 'invalid'));
+                } else {
+                    showMessageBox("Invalid email or password.");
+                }
+            }
+        });
+
+        // Initial setup
+        showSection('home');
+        updateActiveDate();
+        setInterval(updateActiveDate, 1000);
+        document.getElementById('activeCases').textContent = (Math.floor(Math.random() * 5000) + 1000).toLocaleString('en-IN');
+        document.getElementById('recoveredCases').textContent = (Math.floor(Math.random() * 44500000) + 44400000).toLocaleString('en-IN');
+    });
+
+    window.onclick = e => {
+        const target = e.target;
+        if(target.classList.contains('article-modal')) closeArticleModal();
+        if(target.classList.contains('video-modal')) closeVideoModal();
+        if(target.classList.contains('options-modal')) closeOptionsModal();
+        if(target.classList.contains('feedback-modal')) closeFeedback();
+        if(target.classList.contains('message-box')) closeMessageBox();
+    };
+
+    // ########################### EPIDEMIC SIMULATION (USER PROVIDED) ###########################
+    class EpidemicSimulation {
+        constructor() {
+            this.ALL_SYMPTOMS = [
+                "Breath Congestion", "High Fever (38.8°C)", "Low Oxygen Saturation (<98%)",
+                "Fatigue & muscle pain", "Confusion & memory loss", "Diarrhea", "Blood clot / Chest pain"
+            ];
+            this.NODE_R = 22;
+            this.tree = []; this.history = []; this.histIdx = -1;
+            this.idCounter = 1;
+            this.analyzerOn = false; this.traceOn = false;
+            this.clickedNode = null; this.activeNode = null;
+            this.zoom = 1; this.day = 0;
+            this.animationInterval = null;
+            
+            // Map all element IDs to a single elements object for easy access
+            this.elements = {
+                logoutBtn: document.getElementById('logoutBtn'),
+                sympBtn: document.getElementById('sympBtn'),
+                traceBtn: document.getElementById('traceBtn'),
+                superBtn: document.getElementById('superBtn'),
+                removeSuperBtn: document.getElementById('removeSuperBtn'),
+                quarBtn: document.getElementById('quarBtn'),
+                backBtn: document.getElementById('backBtn'),
+                fwdBtn: document.getElementById('fwdBtn'),
+                animateBtn: document.getElementById('animateBtn'),
+                zoomSlider: document.getElementById('zoom-slider'),
+                zoomLabel: document.getElementById('zoom-label'),
+                dayCounter: document.getElementById('day-counter'),
+                counters: document.getElementById('counters'),
+                svgContainer: document.getElementById('svg-container'),
+                svg: document.getElementById('treeSVG'),
+                popup: document.getElementById('popup-message'),
+                nodeDialog: document.getElementById('nodeDialog'),
+                numPersons: document.getElementById('numPersons'),
+                idInputsContainer: document.getElementById('idInputsContainer'),
+                submitNodeDialogBtn: document.getElementById('submitNodeDialogBtn'),
+                cancelNodeDialogBtn: document.getElementById('cancelNodeDialogBtn'),
+                symptomDialog: document.getElementById('symptom-dialog'),
+                symForm: document.getElementById('symForm'),
+                symptomCheckboxes: document.getElementById('symptomCheckboxes'),
+                customSym: document.getElementById('customSym'),
+                cancelSymBtn: document.getElementById('cancelSymBtn'),
+            };
+        }
+
+        init() {
+            this.tree = [{
+                id: 1, parent: null, level: 0, color: this.getColorByRisk('low'), risk: 'low',
+                superspreader: false, quarantined: false, highRisk: false, fullId: '000000000001', symptoms: [], immunity: 2000
+            }];
+            this.saveState();
+            this.renderTree();
+            this.addEventListeners();
+            this.populateSymptomCheckboxes();
+            this.updateDay();
+        }
+
+        destroy() {
+            if (this.animationInterval) {
+                clearInterval(this.animationInterval);
+                this.animationInterval = null;
+            }
+        }
+        
+        addEventListeners() {
+            this.elements.logoutBtn.onclick = () => handleLogout();
+            this.elements.sympBtn.onclick = () => this.toggleAnalyzer();
+            this.elements.traceBtn.onclick = () => this.toggleTrace();
+            this.elements.superBtn.onclick = () => this.detectSuperspreaders();
+            this.elements.removeSuperBtn.onclick = () => this.removeSuperspreaders();
+            this.elements.quarBtn.onclick = () => this.quarantineHighRisk();
+            this.elements.backBtn.onclick = () => this.loadState(this.histIdx - 1);
+            this.elements.fwdBtn.onclick = () => this.loadState(this.histIdx + 1);
+            this.elements.animateBtn.onclick = () => this.toggleAnimation();
+            this.elements.zoomSlider.oninput = (e) => this.setZoom(e.target.value);
+            this.elements.numPersons.oninput = () => this.generateIdInputs();
+            this.elements.submitNodeDialogBtn.onclick = () => this.submitNewNodes();
+            this.elements.cancelNodeDialogBtn.onclick = () => this.closeDialog();
+            this.elements.symForm.onsubmit = (e) => this.saveSymptoms(e);
+            this.elements.cancelSymBtn.onclick = () => this.closeSymptomDialog();
+        }
+        
+        populateSymptomCheckboxes() {
+             this.elements.symptomCheckboxes.innerHTML = this.ALL_SYMPTOMS.map(sym => 
+                `<label><input type="checkbox" name="sym" value="${sym}"/> ${sym.replace('<', '<')}</label>`
+             ).join('');
+        }
+
+        showMsg(msg) {
+            this.elements.popup.innerHTML = msg;
+            this.elements.popup.style.display = 'block';
+            clearTimeout(this.elements.popup._t);
+            this.elements.popup._t = setTimeout(() => this.elements.popup.style.display = 'none', 2000);
+        }
+
+        updateCounters() {
+            let infected = 0, suspected = 0, nonInfected = 0;
+            this.tree.forEach(n => {
+                if (n.risk === 'high') infected++;
+                else if (n.risk === 'medium') suspected++;
+                else nonInfected++;
+            });
+            this.elements.counters.textContent = `Infected:${infected} | Non-Infected:${nonInfected} | Suspected:${suspected}`;
+        }
+
+        saveState() {
+            this.history = this.history.slice(0, this.histIdx + 1);
+            this.history.push(JSON.stringify(this.tree.map(n => ({...n}))));
+            this.histIdx = this.history.length - 1;
+        }
+        
+        loadState(idx) {
+            if (idx < 0 || idx >= this.history.length) return;
+            this.tree = JSON.parse(this.history[idx]);
+            this.histIdx = idx;
+            this.idCounter = Math.max(...this.tree.map(n => n.id), 0);
+            this.renderTree();
+            this.updateCounters();
+            this.updateDay();
+        }
+
+        getColorByRisk(risk) {
+            if (risk === 'high') return '#f44336';
+            if (risk === 'medium') return '#ffeb3b';
+            return '#4caf50';
+        }
+        
+        setNodeColor(node, risk) {
+            node.risk = risk;
+            node.color = this.getColorByRisk(risk);
+            node.highRisk = (risk === 'high');
+        }
+
+        renderTree(highlightIds=[], promotedIds=[], tracePaths=[], traceStep=-1) {
+            const svg = this.elements.svg;
+            const m = new Map();
+            this.tree.forEach(n => m.set(n.parent, (m.get(n.parent)||[]).concat(n)));
+            const roots = this.tree.filter(n=>n.parent===null);
+            let offset = 0;
+            roots.forEach(root=>{
+                this.layout(root,m,root.level||0,offset,80,80);
+                offset += this.getNodeWidth(root, m) * 80 + 50;
+            });
+            const xs = this.tree.length > 0 ? this.tree.map(n=>n.x) : [0];
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            svg.setAttribute('width', Math.max(maxX-minX+this.NODE_R*4, 1200));
+            const maxY = this.tree.length > 0 ? Math.max(...this.tree.map(n=>n.y)) : 0;
+            svg.setAttribute('height', Math.max(maxY + this.NODE_R*4, 800));
+            svg.innerHTML='';
+            this.tree.forEach(n=>n.x+=this.NODE_R*2 - minX);
+            // Draw edges
+            this.tree.forEach(n=>{
+                if(n.parent!==null){
+                    const p = this.tree.find(x=>x.id===n.parent);
+                    if (!p) return;
+                    const ln = document.createElementNS(svg.namespaceURI,'line');
+                    ln.setAttribute('x1',p.x); ln.setAttribute('y1',p.y);
+                    ln.setAttribute('x2',n.x); ln.setAttribute('y2',n.y);
+                    ln.classList.add('edge');
+                    if(tracePaths.length && traceStep >= 0) {
+                        let idx = tracePaths.findIndex(tp=>tp.from===p.id && tp.to===n.id);
+                        if(idx > -1 && idx <= traceStep) ln.classList.add('trace-animate');
+                        else if(idx > -1) ln.classList.add('trace-path');
+                    } else if(tracePaths.some(tp=>tp.from===p.id && tp.to===n.id)) {
+                        ln.classList.add('trace-path');
+                    }
+                    svg.appendChild(ln);
+                }
+            });
+            // Draw nodes
+            this.tree.forEach(n=>{
+                const g = document.createElementNS(svg.namespaceURI,'g');
+                g.setAttribute('transform',`translate(${n.x},${n.y})`);
+                g.classList.add('node');
+                g.dataset.id = n.id;
+                if (n.superspreader) g.classList.add('superspreader');
+                if (n.quarantined) g.classList.add('quarantine');
+                if (highlightIds.includes(n.id)) g.classList.add('blink-red');
+                if (promotedIds.includes(n.id)) g.classList.add('blink-green');
+                if (n.risk==='high') g.classList.add('blink-red');
+                else if (n.risk==='medium') g.classList.add('blink-yellow');
+                else if (n.risk==='low') g.classList.add('blink-green');
+
+                if(tracePaths.length && traceStep >= 0) {
+                    let idx = tracePaths.findIndex(tp=>tp.node===n.id);
+                    if(idx > -1 && idx <= traceStep) g.classList.add('trace-node');
+                } else if(tracePaths.some(tp=>tp.node===n.id)) {
+                    g.classList.add('trace-node');
+                }
+
+                const c = document.createElementNS(svg.namespaceURI,'circle');
+                c.setAttribute('r',this.NODE_R);
+                c.setAttribute('fill',n.color || this.getColorByRisk(n.risk || 'low'));
+                const t = document.createElementNS(svg.namespaceURI,'text');
+                t.setAttribute('dy','.35em'); t.setAttribute('text-anchor','middle');
+                t.textContent = n.fullId ? n.fullId.slice(-4) : n.id;
+                g.appendChild(c); g.appendChild(t);
+                svg.appendChild(g);
+
+                g.onclick = e => {
+                    e.stopPropagation();
+                    if (!n.fullId || !/^\d{12}$/.test(n.fullId)) {
+                        this.show12DigitAlert(n, g);
+                        return;
+                    }
+                    if (this.traceOn) { this.animateTracePath(n.id); return; }
+                    if (this.analyzerOn) { this.openSymptomDialog(n); return; }
+                    if (n.quarantined) { this.showMsg('Quarantined nodes cannot have children'); return; }
+                    this.openDialog(n);
+                };
+            });
+            this.updateCounters();
+            this.updateDay();
+        }
+        
+        show12DigitAlert(node, g) {
+            document.querySelectorAll('.alert-12digit').forEach(el=>el.remove());
+            g.classList.add('blink-red');
+            let msg = document.createElement('div');
+            msg.className = "alert-12digit";
+            msg.textContent = "Please enter a valid 12-digit ID for this node.";
+            this.elements.svgContainer.appendChild(msg);
+            setTimeout(()=>{
+                g.classList.remove('blink-red');
+                msg.remove();
+            }, 2000);
+        }
+
+        getNodeWidth(node, map) {
+            const children = map.get(node.id) || [];
+            if (children.length === 0) return 1;
+            return children.reduce((sum, child) => sum + this.getNodeWidth(child, map), 0);
+        }
+        
+        layout(node,m,lvl,xc,hgap,vgap){
+            node.level = lvl;
+            const kids = m.get(node.id)||[];
+            if(kids.length===0){ node.x=xc; node.y=lvl*vgap+this.NODE_R*2; return 1; }
+            const ws = kids.map(k=>this.layout(k,m,lvl+1,0,hgap,vgap));
+            const total = ws.reduce((a,b)=>a+b,0);
+            let cx = xc - total*hgap/2 + hgap/2;
+            kids.forEach((k,i)=>{
+                const w=ws[i], cent=cx+(w-1)*hgap/2;
+                this.shift(k,m,cent,vgap);
+                cx+=w*hgap;
+            });
+            node.x=xc; node.y=lvl*vgap+this.NODE_R*2;
+            return total;
+        }
+
+        shift(n,m,nx,vgap){
+            const dx = nx - n.x;
+            n.x = nx;
+            n.y = n.level*vgap + this.NODE_R*2;
+            (m.get(n.id)||[]).forEach(c=>this.shift(c,m,c.x+dx,vgap));
+        }
+        
+        openDialog(n){
+            this.activeNode = n;
+            this.elements.nodeDialog.style.display = 'block';
+            this.elements.numPersons.value = '';
+            this.elements.idInputsContainer.innerHTML = '';
+        }
+        
+        closeDialog(){ this.elements.nodeDialog.style.display = 'none'; }
+        
+        generateIdInputs() {
+            const num = parseInt(this.elements.numPersons.value) || 0;
+            const container = this.elements.idInputsContainer;
+            container.innerHTML = '';
+            if (num < 1 || num > 10) return;
+            for(let i=0;i<num;i++) {
+                const div = document.createElement('div');
+                div.className = 'person-id-input-group';
+                div.innerHTML = `
+                <label>12-digit ID for person ${i+1}:</label>
+                <input type="text" maxlength="12" pattern="\\d{12}" class="person-id-input" required /><span class="error-message"></span><br/>
+                <label>Immunity (Lymphocytes/mL):</label>
+                <input type="number" min="0" class="immunity-input" required /><br/>
+                <div class="symptoms-child-section">
+                    ${this.ALL_SYMPTOMS.map(sym => `<label><input type="checkbox" class="symptom-input" value="${sym}"/>${sym.replace('<', '<')}</label>`).join('')}
+                    <label>Custom: <input type="text" class="custom-symptom" /></label>
+                </div>
+                `;
+                container.appendChild(div);
+            }
+        }
+        
+        submitNewNodes() {
+            const num = parseInt(this.elements.numPersons.value) || 0;
+            const container = this.elements.idInputsContainer;
+            let valid = true, ids = [], newNodes = [];
+            for(let i=0;i<num;i++) {
+                const div = container.children[i];
+                const idInput = div.querySelector('.person-id-input');
+                const errorSpan = div.querySelector('.error-message');
+                const immunityInput = div.querySelector('.immunity-input');
+                const customSymInput = div.querySelector('.custom-symptom');
+                const idVal = idInput.value.trim();
+                const immunityVal = parseInt(immunityInput.value.trim());
+
+                if(!/^\d{12}$/.test(idVal)) {
+                    errorSpan.textContent = "Enter a valid 12-digit ID";
+                    errorSpan.style.display = 'block';
+                    idInput.classList.add('input-error');
+                    valid = false;
+                    continue;
+                } else {
+                    errorSpan.textContent = "";
+                    errorSpan.style.display = 'none';
+                    idInput.classList.remove('input-error');
+                }
+                if(ids.includes(idVal) || this.tree.some(n=>n.fullId===idVal)) { this.showMsg('Duplicate 12-digit ID detected.'); valid = false; break; }
+                if(isNaN(immunityVal) || immunityVal < 0) { this.showMsg('Immunity must be a non-negative number.'); valid = false; break; }
+                
+                ids.push(idVal);
+                const symptoms = Array.from(div.querySelectorAll('.symptom-input:checked')).map(cb=>cb.value);
+                if(customSymInput.value.trim()) symptoms.push(customSymInput.value.trim());
+                if(symptoms.length === 0) { this.showMsg('Each person must have at least one symptom.'); valid = false; break; }
+                
+                let risk = symptoms.length >= 4 ? 'high' : (symptoms.length >= 2 ? 'medium' : 'low');
+                
+                this.idCounter++;
+                newNodes.push({
+                    id: this.idCounter, parent: this.activeNode.id, level: this.activeNode.level + 1,
+                    risk: risk, highRisk: (risk === 'high'), superspreader: false, quarantined: false,
+                    fullId: idVal, symptoms: symptoms, immunity: immunityVal
+                });
+            }
+            if(!valid) return;
+            newNodes.forEach(n => this.setNodeColor(n, n.risk));
+            this.tree.push(...newNodes);
+            this.closeDialog();
+            this.saveState();
+            this.renderTree();
+        }
+
+        toggleAnalyzer() {
+            this.analyzerOn = !this.analyzerOn;
+            this.elements.sympBtn.classList.toggle('active', this.analyzerOn);
+        }
+        
+        openSymptomDialog(node) {
+            this.clickedNode = node;
+            this.elements.symptomDialog.style.display = 'block';
+            this.elements.symForm.reset();
+            const prev = node.symptoms || [];
+            this.elements.symForm.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = prev.includes(cb.value);
+            });
+            this.elements.customSym.value = '';
+        }
+        
+        closeSymptomDialog() { this.elements.symptomDialog.style.display = 'none'; }
+
+        saveSymptoms(e) {
+            e.preventDefault();
+            const symptoms = Array.from(this.elements.symForm.querySelectorAll('input[name="sym"]:checked')).map(cb => cb.value);
+            const custom = this.elements.customSym.value.trim();
+            if (custom) symptoms.push(custom);
+            this.clickedNode.symptoms = symptoms;
+            let risk = symptoms.length >= 4 ? 'high' : (symptoms.length >= 2 ? 'medium' : 'low');
+            this.setNodeColor(this.clickedNode, risk);
+            this.saveState();
+            this.renderTree();
+            this.closeSymptomDialog();
+            this.showMsg('Symptoms updated!');
+        }
+
+        toggleTrace() {
+            this.traceOn = !this.traceOn;
+            this.elements.traceBtn.classList.toggle('active', this.traceOn);
+            this.showMsg(this.traceOn ? "Contact tracing mode: click a node" : "Tracing mode off");
+        }
+        
+        getTracePath(id) {
+            let path = [];
+            let node = this.tree.find(n => n.id === id);
+            while (node) {
+                path.push(node);
+                node = this.tree.find(n => n.id === node.parent);
+            }
+            path.reverse();
+            let tracePaths = [];
+            for(let i=0; i<path.length; i++) {
+                tracePaths.push({from: (i>0 ? path[i-1].id : null), to: path[i].id, node: path[i].id});
+            }
+            return {path, tracePaths};
+        }
+
+        animateTracePath(id) {
+            const {path, tracePaths} = this.getTracePath(id);
+            let step = 0;
+            const animateStep = () => {
+                this.renderTree([], [], tracePaths, step);
+                if(step < path.length) {
+                    step++;
+                    setTimeout(animateStep, 500);
+                } else {
+                    this.renderTree([], [], tracePaths, path.length-1);
+                    this.showMsg("Tracing path complete!");
+                }
+            }
+            animateStep();
+        }
+        
+        detectSuperspreaders() {
+            this.tree.forEach(n => n.superspreader = false);
+            let maxHighRisk = 0, superspreaderIds = [];
+            this.tree.forEach(n => {
+                const children = this.tree.filter(x => x.parent === n.id);
+                const highRiskCount = children.filter(x => x.highRisk).length;
+                if (highRiskCount > maxHighRisk) {
+                    maxHighRisk = highRiskCount;
+                    superspreaderIds = [n.id];
+                } else if (highRiskCount === maxHighRisk && highRiskCount > 0) {
+                    superspreaderIds.push(n.id);
+                }
+            });
+            superspreaderIds.forEach(id => {
+                const node = this.tree.find(n => n.id === id);
+                if(node) node.superspreader = true;
+            });
+            this.renderTree();
+            this.showMsg(
+                maxHighRisk === 0
+                ? "No superspreaders detected (no high-risk contacts)."
+                : `Detected ${superspreaderIds.length} superspreader(s) (with ${maxHighRisk} high-risk contacts)`
+            );
+        }
+        
+        removeSuperspreaders() {
+            const superspreaderIds = this.tree.filter(n => n.superspreader).map(n => n.id);
+            const promotedChildren = [];
+            this.tree.forEach(node => {
+                if (superspreaderIds.includes(node.parent)) promotedChildren.push(node.id);
+            });
+            
+            this.renderTree(superspreaderIds, promotedChildren);
+            
+            setTimeout(() => {
+                this.tree = this.tree.filter(node => !superspreaderIds.includes(node.id));
+                promotedChildren.forEach(id => {
+                    const child = this.tree.find(n => n.id === id);
+                    if (child) {
+                        child.parent = null;
+                        child.level += 1; // Move to next day
+                    }
+                });
+                this.saveState();
+                this.renderTree();
+                this.showMsg(`Removed ${superspreaderIds.length} superspreader(s), promoted ${promotedChildren.length} children.`);
+            }, 1500);
+        }
+
+        quarantineHighRisk() {
+            this.tree.forEach(n => {
+                if (n.highRisk) {
+                    n.quarantined = true;
+                    const children = this.tree.filter(c => c.parent === n.id);
+                    children.forEach(c => c.quarantined = true);
+                }
+            });
+            this.renderTree();
+            this.showMsg("Quarantined all high-risk nodes and their children");
+            this.saveState();
+        }
+
+        setZoom(value) {
+            this.zoom = parseInt(value) / 100;
+            this.elements.zoomLabel.textContent = `${value}%`;
+            this.elements.svg.style.transform = `scale(${this.zoom})`;
+        }
+        
+        updateDay() {
+            if (this.tree.length === 0) {
+                this.day = 0;
+            } else {
+                this.day = Math.max(...this.tree.map(n => n.level));
+            }
+            this.elements.dayCounter.textContent = `Day: ${this.day}`;
+        }
+        
+        toggleAnimation() {
+            if (this.animationInterval) {
+                clearInterval(this.animationInterval);
+                this.animationInterval = null;
+                this.elements.animateBtn.classList.remove('active');
+                this.showMsg('Animation stopped');
+            } else {
+                let idx = 0;
+                this.elements.animateBtn.classList.add('active');
+                this.showMsg('Animation started');
+                this.animationInterval = setInterval(() => {
+                    if (idx >= this.history.length) {
+                        clearInterval(this.animationInterval);
+                        this.animationInterval = null;
+                        this.elements.animateBtn.classList.remove('active');
+                        this.showMsg('Animation finished');
+                        return;
+                    }
+                    this.loadState(idx);
+                    idx++;
+                }, 1000);
+            }
+        }
+    }
+  </script>
+</body>
+</html>
